@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mango 钢琴</title>
+  <style>
+    body {
+      background: #1e1e1e;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      color: white;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-size: 28px;
+      letter-spacing: 2px;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+
+    .instructions {
+      margin-bottom: 15px;
+      font-size: 14px;
+      color: #aaa;
+      text-align: center;
+    }
+
+    .piano {
+      position: relative;
+      height: 240px;
+      display: flex;
+      padding: 20px;
+      background: #2c2c2c;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .key {
+      position: relative;
+      bottom: 0;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .white-key {
+      width: 40px;
+      height: 200px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 0 0 6px 6px;
+      z-index: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      padding-bottom: 10px;
+      color: #333;
+      font-size: 12px;
+      transition: transform 0.1s, background 0.1s;
+    }
+
+    .white-key:hover,
+    .white-key.active {
+      background: #f0f0f0;
+      transform: translateY(-3px);
+    }
+
+    .black-key {
+      width: 26px;
+      height: 120px;
+      background: black;
+      border-radius: 0 0 4px 4px;
+      z-index: 2;
+      margin-left: -13px;
+      margin-right: -13px;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      padding-bottom: 10px;
+      font-size: 10px;
+      transition: transform 0.1s, background 0.1s;
+    }
+
+    .black-key:hover,
+    .black-key.active {
+      background: #333;
+      transform: translateY(-3px);
+    }
+  </style>
+</head>
+<body>
+  <h1>Mango 钢琴</h1>
+  <div class="instructions">按键盘数字键 1–8 演奏 C4 到 C5 音阶 | 鼠标点击任意琴键</div>
+  <div class="piano" id="piano"></div>
+
+  <script>
+    // 音符频率表（A4 = 440Hz）
+    const noteFrequencies = {
+      'C': 261.63,   // C4
+      'C#': 277.18,
+      'D': 293.66,
+      'D#': 311.13,
+      'E': 329.63,
+      'F': 349.23,
+      'F#': 369.99,
+      'G': 392.00,
+      'G#': 415.30,
+      'A': 440.00,
+      'A#': 466.16,
+      'B': 493.88,
+    };
+
+    const octaves = [3, 4, 5];
+    const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+    // 键盘映射：1-8 → C4 到 C5 的白键
+    const keyMap = {
+      '1': 'C4',
+      '2': 'D4',
+      '3': 'E4',
+      '4': 'F4',
+      '5': 'G4',
+      '6': 'A4',
+      '7': 'B4',
+      '8': 'C5'
+    };
+
+    let audioContext;
+    const keyElements = {};
+
+    function playNote(freq) {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.value = freq;
+      gainNode.gain.value = 0.25;
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 0.8); // 播放 0.8 秒
+    }
+
+    function getFrequency(noteName, octave) {
+      const baseOctave = 4;
+      const semitones = (octave - baseOctave) * 12;
+      const baseFreq = noteFrequencies[noteName];
+      return baseFreq * Math.pow(2, semitones / 12);
+    }
+
+    function createKey(note, octave, isBlack = false) {
+      const key = document.createElement('div');
+      key.className = `key ${isBlack ? 'black-key' : 'white-key'}`;
+      const noteId = `${note}${octave}`;
+      key.dataset.note = noteId;
+      key.dataset.freq = getFrequency(note, octave);
+      key.textContent = noteId;
+
+      const activate = () => {
+        key.classList.add('active');
+        playNote(parseFloat(key.dataset.freq));
+      };
+
+      const deactivate = () => {
+        key.classList.remove('active');
+      };
+
+      key.addEventListener('mousedown', activate);
+      key.addEventListener('mouseup', deactivate);
+      key.addEventListener('mouseleave', deactivate);
+
+      key.activate = activate;
+      key.deactivate = deactivate;
+
+      keyElements[noteId] = key;
+      return key;
+    }
+
+    function buildPiano() {
+      const piano = document.getElementById('piano');
+      octaves.forEach(octave => {
+        notes.forEach(note => {
+          const isBlack = note.includes('#');
+          const key = createKey(note, octave, isBlack);
+          piano.appendChild(key);
+        });
+      });
+    }
+
+    // 键盘事件监听
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return; // 避免长按时重复触发
+      const noteId = keyMap[e.key];
+      if (noteId && keyElements[noteId]) {
+        keyElements[noteId].activate();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const noteId = keyMap[e.key];
+      if (noteId && keyElements[noteId]) {
+        keyElements[noteId].deactivate();
+      }
+    });
+
+    // 初始化钢琴
+    window.addEventListener('load', buildPiano);
+  </script>
+</body>
+</html>
